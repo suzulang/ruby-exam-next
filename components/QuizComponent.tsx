@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, XCircle } from "lucide-react"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import ReactMarkdown from 'react-markdown'
 
 interface Question {
   id: string;
@@ -17,6 +18,22 @@ interface Question {
   options: { content: string; label: string }[];
   correct_answer: string;
 }
+
+import { formatText } from '@/lib/formatText';
+
+// 修改后的预处理函数
+const processCode = (code: string) => {
+  const lines = code.split('\\n');
+  return lines.map((line, index) => {
+    if (line.startsWith('[') && line.endsWith(']')) {
+      return `\n**${line}**\n`;
+    }
+    if (line.includes('__')) {
+      return line.replace(/__(.*?)__/g, '`$1`');
+    }
+    return line;
+  }).join('\n');
+};
 
 export default function QuizComponent() {
   const [questions, setQuestions] = useState<Question[]>([])
@@ -101,12 +118,21 @@ export default function QuizComponent() {
           <CardTitle className="text-3xl font-bold text-center text-gray-800 dark:text-gray-200">Quiz Completed!</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center">
-            <p className="text-5xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">{score} / {questions.length}</p>
-            <p className="text-xl mb-4 text-gray-700 dark:text-gray-300">
-              You got {score} out of {questions.length} questions correct.
-            </p>
-            <Progress value={(score / questions.length) * 100} className="w-full h-4 mb-6" />
+          <div className="mb-6">
+            <p className="text-xl font-medium mb-4 text-gray-700 dark:text-gray-300">{formatText(currentQuestion.content)}</p>
+            {currentQuestion.code && (
+              <SyntaxHighlighter
+                language="ruby"
+                style={tomorrow}
+                className="rounded-md text-sm"
+                showLineNumbers={true}
+                wrapLines={true}
+                wrapLongLines={true}
+                customStyle={{ whiteSpace: 'pre-wrap' }}
+              >
+                {processCode(currentQuestion.code)}
+              </SyntaxHighlighter>
+            )}
           </div>
         </CardContent>
         <CardFooter>
@@ -128,7 +154,32 @@ export default function QuizComponent() {
       </CardHeader>
       <CardContent>
         <div className="mb-6">
-          <p className="text-xl font-medium mb-4 text-gray-700 dark:text-gray-300">{currentQuestion.content}</p>
+          <ReactMarkdown
+            components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '')
+                return !inline && match ? (
+                  <SyntaxHighlighter
+                    language={match[1]}
+                    style={tomorrow}
+                    className="rounded-md text-sm"
+                    showLineNumbers={true}
+                    wrapLines={true}
+                    wrapLongLines={true}
+                    customStyle={{ whiteSpace: 'pre-wrap' }}
+                  >
+                    {processCode(String(children).replace(/\n$/, ''))}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                )
+              }
+            }}
+          >
+            {currentQuestion.content}
+          </ReactMarkdown>
           {currentQuestion.code && (
             <SyntaxHighlighter
               language="ruby"
@@ -136,8 +187,10 @@ export default function QuizComponent() {
               className="rounded-md text-sm"
               showLineNumbers={true}
               wrapLines={true}
+              wrapLongLines={true}
+              customStyle={{ whiteSpace: 'pre-wrap' }}
             >
-              {currentQuestion.code}
+              {processCode(currentQuestion.code)}
             </SyntaxHighlighter>
           )}
         </div>
@@ -152,10 +205,10 @@ export default function QuizComponent() {
                   : "bg-gray-100 dark:bg-gray-700"
                 : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
             }`}>
-              <RadioGroupItem value={option.label} id={`option-${index}`} disabled={showResult} />
               <Label htmlFor={`option-${index}`} className="flex-grow cursor-pointer text-gray-700 dark:text-gray-300">
-                {option.content}
+                {String.fromCharCode(65 + index)}. {option.content}
               </Label>
+              <RadioGroupItem value={option.label} id={`option-${index}`} disabled={showResult} />
               {showResult && option.label === currentQuestion.correct_answer && (
                 <CheckCircle2 className="text-green-500 h-5 w-5" />
               )}
